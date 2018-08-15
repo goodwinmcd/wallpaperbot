@@ -1,19 +1,11 @@
 #!/usr/bin/env python3
 
 import praw
-import io
 import os
 import random
-from PIL import Image
-from imgurpython import ImgurClient
 import configparser
 from pymongo import MongoClient
-import requests
-import urllib
-import base64
-import json
 import pyimgur
-from pprint import pprint
 
 def get_configs():
     config_parser = configparser.RawConfigParser()
@@ -37,22 +29,10 @@ def get_configs():
 REDDIT_CREDS, IMGUR_CREDS = get_configs()
 WALLPAPER_PATH = './Wallpapers'
 IMGUR_POST_IMAGE = 'https://api.imgur.com/3/image'
-
-def upload_image_to_imgur(image, title):
-    f = open(os.path.join(WALLPAPER_PATH, image), 'rb')
-    image_data = f.read()
-    b64_image = base64.standard_b64encode(image_data)
-    headers = {'Authorization': f"Bearer {IMGUR_CREDS['access_token']}"}
-    #headers = {'Authorization': f"Client-ID {IMGUR_CREDS['client_id']}"}
-    print(headers)
-    data = {'image': b64_image, 'title': title}
-    response = requests.post(url=IMGUR_POST_IMAGE,
-                             data=urllib.parse.urlencode(data),
-                             headers=headers)
-    pprint(response.json())
+MONGO_ADDRESS = '127.0.0.1'
 
 def connect_to_wallpapers():
-    return MongoClient('127.0.0.1').wallpapers.wallpapers
+    return MongoClient(MONGO_ADDRESS).wallpapers.wallpapers
 
 #wallpapers subreddit only allows images with a size greater than
 #1024x768
@@ -86,26 +66,17 @@ def main():
                           IMGUR_CREDS['client_secret'],
                           IMGUR_CREDS['access_token'],
                           IMGUR_CREDS['refresh_token'])
+    count = collection.count_documents(filter={})
 
-    count = collection.count()
     wallpaper = collection.find()[random.randrange(count)]
     while wallpaper['posted'] and check_resolution(wallpaper):
         wallpaper = collection.find()[random.randrange(count)]
 
     title = f"From my collection [{wallpaper['size_horizontal']}x{wallpaper['size_vertical']}]"
 
-    imgur_post = {
-        'name': title,
-        'title': title,
-    }
-    #upload_image_to_imgur(image=wallpaper['name'], title=title)
-    uploaded_image = imgur.upload_image(os.path.join(WALLPAPER_PATH, wallpaper['name']),
-                                     title="Uploaded with PyImgur")
-    pprint(uploaded_image.link)
-    # image_url = imgur_client.upload_from_path(os.path.join(wallpaper_path, wallpaper['name']),
-    #                                           config=imgur_post,
-    #                                           anon=False)
-    # print(image_url)
+    uploaded_image = imgur.upload_image(os.path.join(WALLPAPER_PATH,
+                                                     wallpaper['name']),
+                                        title=title)
 
     wallpapers_subreddit = reddit.subreddit('wallpapers')
     wallpapers_subreddit.submit(title=title,
